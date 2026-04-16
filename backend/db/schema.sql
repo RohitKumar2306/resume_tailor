@@ -94,7 +94,27 @@ CREATE POLICY "users_own_generations"
     ON generations FOR ALL
     USING (auth.uid() = user_id);
 
--- 8. Auto-create profile on new user signup
+-- 8. pgvector similarity search function
+CREATE OR REPLACE FUNCTION match_document_chunks(
+    p_user_id UUID,
+    p_file_type TEXT,
+    p_embedding VECTOR(384),
+    p_top_k INTEGER DEFAULT 10
+)
+RETURNS TABLE (chunk_text TEXT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT dc.chunk_text
+    FROM document_chunks dc
+    JOIN documents d ON dc.document_id = d.id
+    WHERE dc.user_id = p_user_id
+      AND d.file_type = p_file_type
+    ORDER BY dc.embedding <=> p_embedding
+    LIMIT p_top_k;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 9. Auto-create profile on new user signup
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
