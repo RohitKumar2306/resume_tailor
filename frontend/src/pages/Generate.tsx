@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { Link } from "react-router-dom"
 import apiClient from "@/lib/apiClient"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -107,9 +108,13 @@ export default function Generate() {
       })
       setResult(data)
     } catch (err: unknown) {
-      const detail =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data
-          ?.detail || "Generation failed. Please try again."
+      const resp = (err as { response?: { status?: number; data?: { detail?: string } } })?.response
+      const detail = resp?.data?.detail || "Generation failed. Please try again."
+      if (resp?.status === 429) {
+        toast.error("Generation limit reached (10/hour)")
+      } else {
+        toast.error(`Generation failed: ${detail}`)
+      }
       setError(detail)
     } finally {
       setGenerating(false)

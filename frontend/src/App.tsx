@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
+import { Toaster } from "@/components/ui/sonner"
+import ErrorBoundary from "@/components/ErrorBoundary"
 import Layout from "@/components/Layout"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Auth from "@/pages/Auth"
@@ -29,19 +31,22 @@ function AuthGuard() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/auth" element={<AuthGuard />} />
-        <Route element={<ProtectedRoute />}>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Generate />} />
-            <Route path="/documents" element={<Documents />} />
-            <Route path="/instructions" element={<Instructions />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/settings" element={<Settings />} />
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/auth" element={<AuthGuard />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Generate />} />
+              <Route path="/documents" element={<Documents />} />
+              <Route path="/instructions" element={<Instructions />} />
+              <Route path="/history" element={<History />} />
+              <Route path="/settings" element={<Settings />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+      <Toaster position="bottom-right" richColors />
+    </ErrorBoundary>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
 import apiClient from "@/lib/apiClient"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -8,14 +9,31 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import FileUploadZone from "@/components/FileUploadZone"
-import { Trash2, FileText, AlertCircle } from "lucide-react"
+import { Trash2, FileText } from "lucide-react"
 
 interface DocItem {
   id: string
   file_name: string
   file_type: string
   uploaded_at: string
+}
+
+function DocSkeleton() {
+  return (
+    <div className="space-y-2">
+      {[1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-3 rounded-md border px-4 py-3">
+          <Skeleton className="h-4 w-4 rounded" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function Documents() {
@@ -25,14 +43,6 @@ export default function Documents() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [message, setMessage] = useState<{
-    type: "success" | "error"
-    text: string
-  } | null>(null)
-
-  const clearMessage = () => {
-    setTimeout(() => setMessage(null), 4000)
-  }
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -41,8 +51,7 @@ export default function Documents() {
       setStyleDocs(data.style_docs || [])
       setFormatTemplate(data.format_template || null)
     } catch {
-      setMessage({ type: "error", text: "Failed to load documents" })
-      clearMessage()
+      toast.error("Failed to load documents")
     } finally {
       setLoading(false)
     }
@@ -54,8 +63,6 @@ export default function Documents() {
 
   const handleUpload = async (files: File[], fileType: string) => {
     setUploading(fileType)
-    setMessage(null)
-
     try {
       for (const file of files) {
         const formData = new FormData()
@@ -65,18 +72,13 @@ export default function Documents() {
           headers: { "Content-Type": "multipart/form-data" },
         })
       }
-      setMessage({
-        type: "success",
-        text: `${files.length} file${files.length > 1 ? "s" : ""} uploaded successfully`,
-      })
-      clearMessage()
+      toast.success("Document uploaded and processed")
       await loadDocuments()
     } catch (err: unknown) {
       const detail =
         (err as { response?: { data?: { detail?: string } } })?.response?.data
           ?.detail || "Upload failed"
-      setMessage({ type: "error", text: detail })
-      clearMessage()
+      toast.error(`Upload failed: ${detail}`)
     } finally {
       setUploading(null)
     }
@@ -87,32 +89,24 @@ export default function Documents() {
     if (!file) return
 
     if (!file.name.toLowerCase().endsWith(".docx")) {
-      setMessage({
-        type: "error",
-        text: "Only DOCX files are accepted as format templates",
-      })
-      clearMessage()
+      toast.error("Only DOCX files are accepted as format templates")
       return
     }
 
     setUploading("format_template")
-    setMessage(null)
-
     try {
       const formData = new FormData()
       formData.append("file", file)
       await apiClient.post("/documents/upload-template", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       })
-      setMessage({ type: "success", text: "Format template uploaded" })
-      clearMessage()
+      toast.success("Format template saved")
       await loadDocuments()
     } catch (err: unknown) {
       const detail =
         (err as { response?: { data?: { detail?: string } } })?.response?.data
           ?.detail || "Template upload failed"
-      setMessage({ type: "error", text: detail })
-      clearMessage()
+      toast.error(`Upload failed: ${detail}`)
     } finally {
       setUploading(null)
     }
@@ -122,16 +116,12 @@ export default function Documents() {
     if (!window.confirm(`Delete "${docName}"? This cannot be undone.`)) return
 
     setDeleting(docId)
-    setMessage(null)
-
     try {
       await apiClient.delete(`/documents/${docId}`)
-      setMessage({ type: "success", text: `"${docName}" deleted` })
-      clearMessage()
+      toast.success("Document removed")
       await loadDocuments()
     } catch {
-      setMessage({ type: "error", text: "Delete failed" })
-      clearMessage()
+      toast.error("Delete failed")
     } finally {
       setDeleting(null)
     }
@@ -144,29 +134,34 @@ export default function Documents() {
       year: "numeric",
     })
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <p className="text-muted-foreground">Loading documents...</p>
+  const renderFileList = (docs: DocItem[]) =>
+    docs.map((doc) => (
+      <div
+        key={doc.id}
+        className="flex items-center justify-between rounded-md border px-4 py-3"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{doc.file_name}</p>
+            <p className="text-xs text-muted-foreground">
+              {formatDate(doc.uploaded_at)}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => handleDelete(doc.id, doc.file_name)}
+          disabled={deleting === doc.id}
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
       </div>
-    )
-  }
+    ))
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {message && (
-        <div
-          className={`flex items-center gap-2 rounded-md px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "bg-green-50 text-green-700 border border-green-200"
-              : "bg-red-50 text-red-700 border border-red-200"
-          }`}
-        >
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {message.text}
-        </div>
-      )}
-
       {/* Section 1: Base Resumes */}
       <Card>
         <CardHeader>
@@ -187,35 +182,14 @@ export default function Documents() {
           {uploading === "base_resume" && (
             <p className="text-sm text-muted-foreground">Uploading...</p>
           )}
-          {baseResumes.length > 0 && (
-            <div className="space-y-2">
-              {baseResumes.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between rounded-md border px-4 py-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {doc.file_name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(doc.uploaded_at)}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(doc.id, doc.file_name)}
-                    disabled={deleting === doc.id}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+          {loading ? (
+            <DocSkeleton />
+          ) : baseResumes.length > 0 ? (
+            <div className="space-y-2">{renderFileList(baseResumes)}</div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">
+              No base resumes yet. Upload your resume variants to get started.
+            </p>
           )}
         </CardContent>
       </Card>
@@ -240,35 +214,14 @@ export default function Documents() {
           {uploading === "style_doc" && (
             <p className="text-sm text-muted-foreground">Uploading...</p>
           )}
-          {styleDocs.length > 0 && (
-            <div className="space-y-2">
-              {styleDocs.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between rounded-md border px-4 py-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {doc.file_name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(doc.uploaded_at)}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(doc.id, doc.file_name)}
-                    disabled={deleting === doc.id}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+          {loading ? (
+            <DocSkeleton />
+          ) : styleDocs.length > 0 ? (
+            <div className="space-y-2">{renderFileList(styleDocs)}</div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">
+              No style documents yet. Upload writing references to guide the AI.
+            </p>
           )}
         </CardContent>
       </Card>
@@ -287,7 +240,9 @@ export default function Documents() {
             DOCX files only. PDF is not accepted here.
           </div>
 
-          {formatTemplate ? (
+          {loading ? (
+            <DocSkeleton />
+          ) : formatTemplate ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-md border px-4 py-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -312,7 +267,7 @@ export default function Documents() {
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground italic">
-                No format template uploaded. A default clean style will be used.
+                No format template uploaded. A clean default style will be used.
               </p>
               <FileUploadZone
                 accept=".docx"
