@@ -7,10 +7,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Startup env validation
-REQUIRED_ENV = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "FERNET_KEY", "FRONTEND_URL"]
+REQUIRED_ENV = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "FERNET_KEY"]
 missing = [v for v in REQUIRED_ENV if not os.getenv(v)]
 if missing:
     raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+
+if not os.getenv("FRONTEND_URL"):
+    logging.warning(
+        "FRONTEND_URL is not set — CORS will default to http://localhost:5173. "
+        "Set this to your Vercel URL in production."
+    )
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
